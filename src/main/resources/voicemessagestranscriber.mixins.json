@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "package": "net.dimaskama.voicemessagestranscriber.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "ChatComponentAccessor",
+    "ChatComponentMixin",
+    "ChatScreenMixin",
+    "ClickableChatGraphicsAccessMixin",
+    "DrawingChatGraphicsAccessMixin",
+    "PlaybackPlayerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

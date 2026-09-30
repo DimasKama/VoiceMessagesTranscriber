@@ -1,0 +1,77 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+    id 'maven-publish'
+}
+
+version = mod_version + "+mc" + minecraft_version
+
+repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+    include implementation("maven.modrinth:voicemessages:fabric-${project.voicemessages_version}")
+
+    include implementation("io.github.givimad:whisper-jni:${project.whisper_jni_version}")
+
+    implementation "maven.modrinth:simple-voice-chat:${project.voicechat_version}"
+
+    implementation "maven.modrinth:modmenu:${project.modmenu_version}"
+}
+
+processResources {
+    def version = project.version
+    def javaVersion = project.java_version
+    def minecraftVersion = project.minecraft_version
+    inputs.property "version", version
+    inputs.property "java_version", javaVersion
+    inputs.property "minecraft_version", minecraftVersion
+
+    filesMatching("fabric.mod.json") {
+        expand "version": version,
+                "java_version": javaVersion,
+                "minecraft_version": minecraftVersion
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = Integer.parseInt(java_version)
+}
+
+java {
+    withSourcesJar()
+
+    sourceCompatibility = JavaVersion.toVersion(java_version)
+    targetCompatibility = JavaVersion.toVersion(java_version)
+}
+
+jar {
+    def projectName = project.name
+    inputs.property "projectName", projectName
+
+    from("LICENSE") {
+        rename { "${it}_$projectName" }
+    }
+}
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            from components.java
+        }
+    }
+}

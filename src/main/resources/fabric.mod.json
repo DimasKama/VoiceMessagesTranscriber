@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "voicemessagestranscriber",
+  "version": "${version}",
+  "name": "Voice Messages: Transcriber",
+  "description": "Adds transcriptions for the Voice Messages mod",
+  "authors": [
+    "DimasKama"
+  ],
+  "license": "CC0-1.0",
+  "icon": "assets/voicemessagestranscriber/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "net.dimaskama.voicemessagestranscriber.VoiceMessagesTranscriber"
+    ],
+    "modmenu": [
+      "net.dimaskama.voicemessagestranscriber.compat.ModMenuIntegration"
+    ]
+  },
+  "mixins": [
+    "voicemessagestranscriber.mixins.json"
+  ],
+  "depends": {
+    "minecraft": ">=${minecraft_version}",
+    "java": ">=${java_version}",
+    "fabric-api": "*",
+    "voicemessages": "*"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}
