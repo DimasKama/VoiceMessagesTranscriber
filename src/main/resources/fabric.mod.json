@@ -26,8 +26,5 @@
     "java": ">=${java_version}",
     "fabric-api": "*",
     "voicemessages": "*"
-  },
-  "suggests": {
-    "modmenu": "*"
   }
 }

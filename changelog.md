@@ -1,1 +1,1 @@
-- Initial release
+- First release
