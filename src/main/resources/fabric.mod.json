@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "voicemessagestranscriber",
   "version": "${version}",
-  "name": "Voice Messages: Transcriber",
+  "name": "Voice Messages Transcriber",
   "description": "Adds transcriptions for the Voice Messages mod",
   "authors": [
     "DimasKama"
