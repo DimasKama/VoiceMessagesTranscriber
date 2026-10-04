@@ -31,6 +31,7 @@ import ru.dimaskama.voicemessages.client.PlaybackManager;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -48,7 +49,7 @@ public final class TranscriptionManager {
     private static final Identifier SPRITE_TRANSCRIBING = VoiceMessagesTranscriber.id("transcribing");
     private static final Identifier SPRITE_SHOW_VOICE = VoiceMessagesTranscriber.id("show_voice");
 
-    private static final int BUTTON_GAP = 2;
+    private static final int BUTTON_GAP = 6;
     private static final Pattern WHITESPACE_OR_CONTROL = Pattern.compile("[\\s\\p{Cntrl}]+");
 
     private static final Map<UUID, Entry> ENTRIES = new HashMap<>();
@@ -90,18 +91,27 @@ public final class TranscriptionManager {
     }
 
     public static void extractButton(GuiMessageTag tag, ActiveTextCollector output, ActiveTextCollector.Parameters parameters, int textTop, boolean reservePlayerSpace) {
-        Entry entry = getVoiceEntry(tag);
+        Entry entry = getEntry(tag);
         if (entry == null) {
             return;
         }
         Minecraft minecraft = Minecraft.getInstance();
-        FormattedCharSequence button = entry.getButton();
+        boolean transcript = tag == entry.transcriptTag;
+        FormattedCharSequence button = transcript ? entry.getShowVoiceButton() : entry.getButton();
         int right = (int) (ChatComponent.getWidth(minecraft.options.chatWidth().get()) / minecraft.options.chatScale().get());
         output.accept(TextAlignment.RIGHT, right, textTop, parameters, button);
-        if (reservePlayerSpace) {
+        if (reservePlayerSpace && !transcript) {
             reservedPlayback = PlaybackManager.MAIN.get(entry.id);
             reservedWidth = minecraft.font.width(button) + BUTTON_GAP;
         }
+    }
+
+    public static int modifySplitWidth(@Nullable GuiMessageTag tag, int maxWidth) {
+        Entry entry = getEntry(tag);
+        if (entry == null || tag != entry.transcriptTag) {
+            return maxWidth;
+        }
+        return Math.max(maxWidth - Minecraft.getInstance().font.width(entry.getShowVoiceButton()) - BUTTON_GAP, 1);
     }
 
     public static void clearPlayerReservation() {
@@ -114,6 +124,11 @@ public final class TranscriptionManager {
         }
         reservedPlayback = null;
         return Math.max(width - reservedWidth, 0);
+    }
+
+    public static boolean isTranscriberClick(Style style) {
+        return style.getClickEvent() instanceof ClickEvent.Custom custom
+                && VoiceMessagesTranscriber.MOD_ID.equals(custom.id().getNamespace());
     }
 
     public static boolean handleClick(ClickEvent.Custom event, Screen screen) {
@@ -129,8 +144,12 @@ public final class TranscriptionManager {
             if (ACTION_TRANSCRIBE.equals(action)) {
                 startTranscription(entry, screen);
             } else if (ACTION_SHOW_TEXT.equals(action)) {
-                entry.showingText = true;
-                entry.updateChat();
+                if (entry.needsRetranscription()) {
+                    startTranscription(entry, screen);
+                } else {
+                    entry.showingText = true;
+                    entry.updateChat();
+                }
             } else if (ACTION_SHOW_VOICE.equals(action)) {
                 entry.showingText = false;
                 entry.updateChat();
@@ -140,7 +159,7 @@ public final class TranscriptionManager {
     }
 
     private static void startTranscription(Entry entry, Screen screen) {
-        if (entry.state != State.IDLE) {
+        if (entry.state == State.TRANSCRIBING) {
             return;
         }
         String model = WhisperModels.getSelectedInstalled();
@@ -161,6 +180,7 @@ public final class TranscriptionManager {
             return;
         }
 
+        State previousState = entry.state;
         entry.setState(State.TRANSCRIBING);
         Minecraft minecraft = Minecraft.getInstance();
         WhisperTranscriber.transcribe(List.copyOf(playback.getAudio()), model, VoiceMessagesTranscriber.CONFIG.getData().language())
@@ -175,9 +195,10 @@ public final class TranscriptionManager {
                                 Component.translatable("voicemessagestranscriber.transcription_failed"),
                                 String.valueOf(cause.getMessage())
                         );
-                        entry.setState(State.IDLE);
+                        entry.setState(previousState);
                     } else {
                         entry.text = sanitize(text);
+                        entry.model = model;
                         entry.showingText = true;
                         entry.setState(State.DONE);
                     }
@@ -194,13 +215,16 @@ public final class TranscriptionManager {
     }
 
     @Nullable
-    private static Entry getVoiceEntry(@Nullable GuiMessageTag tag) {
+    private static Entry getEntry(@Nullable GuiMessageTag tag) {
         UUID id = parseId(tag, VOICE_TAG_PREFIX);
         if (id == null) {
-            return null;
+            id = parseId(tag, TRANSCRIPT_TAG_PREFIX);
+            if (id == null) {
+                return null;
+            }
         }
         Entry entry = ENTRIES.get(id);
-        return entry != null && entry.voiceTag == tag ? entry : null;
+        return entry != null && (entry.voiceTag == tag || entry.transcriptTag == tag) ? entry : null;
     }
 
     @Nullable
@@ -229,11 +253,10 @@ public final class TranscriptionManager {
         }
     }
 
-    private static MutableComponent createButton(Identifier sprite, String fallback, Component tooltip, @Nullable Identifier action, String token) {
-        Style style = Style.EMPTY.withHoverEvent(new HoverEvent.ShowText(tooltip));
-        if (action != null) {
-            style = style.withClickEvent(new ClickEvent.Custom(action, Optional.of(StringTag.valueOf(token))));
-        }
+    private static MutableComponent createButton(Identifier sprite, String fallback, Component tooltip, Identifier action, String token) {
+        Style style = Style.EMPTY
+                .withHoverEvent(new HoverEvent.ShowText(tooltip))
+                .withClickEvent(new ClickEvent.Custom(action, Optional.of(StringTag.valueOf(token))));
         return Component.object(new AtlasSprite(AtlasIds.GUI, sprite), Component.literal(fallback)).setStyle(style);
     }
 
@@ -252,7 +275,10 @@ public final class TranscriptionManager {
         private final GuiMessageTag transcriptTag;
         private State state = State.IDLE;
         private @Nullable FormattedCharSequence button;
+        private @Nullable FormattedCharSequence showVoiceButton;
+        private boolean buttonRetranscribes;
         private String text = "";
+        private @Nullable String model;
         private boolean showingText;
 
         private Entry(UUID id, Component sender, GuiMessageTag voiceTag) {
@@ -272,22 +298,34 @@ public final class TranscriptionManager {
             button = null;
         }
 
+        private boolean needsRetranscription() {
+            return state == State.DONE && !Objects.equals(model, VoiceMessagesTranscriber.CONFIG.getData().model());
+        }
+
         private FormattedCharSequence getButton() {
-            if (button == null) {
-                button = createStateButton().getVisualOrderText();
+            boolean retranscribes = needsRetranscription();
+            if (button == null || buttonRetranscribes != retranscribes) {
+                buttonRetranscribes = retranscribes;
+                button = (switch (state) {
+                    case IDLE -> createButton(SPRITE_TRANSCRIBE, "[T]",
+                            Component.translatable("voicemessagestranscriber.button.transcribe"), ACTION_TRANSCRIBE, token);
+                    case TRANSCRIBING -> createButton(SPRITE_TRANSCRIBING, "[...]",
+                            Component.translatable("voicemessagestranscriber.button.transcribing"), ACTION_TRANSCRIBE, token);
+                    case DONE -> createButton(SPRITE_TRANSCRIBE, "[T]",
+                            Component.translatable(buttonRetranscribes
+                                    ? "voicemessagestranscriber.button.transcribe"
+                                    : "voicemessagestranscriber.button.show_text"), ACTION_SHOW_TEXT, token);
+                }).getVisualOrderText();
             }
             return button;
         }
 
-        private Component createStateButton() {
-            return switch (state) {
-                case IDLE -> createButton(SPRITE_TRANSCRIBE, "[T]",
-                        Component.translatable("voicemessagestranscriber.button.transcribe"), ACTION_TRANSCRIBE, token);
-                case TRANSCRIBING -> createButton(SPRITE_TRANSCRIBING, "[...]",
-                        Component.translatable("voicemessagestranscriber.button.transcribing"), null, token);
-                case DONE -> createButton(SPRITE_TRANSCRIBE, "[T]",
-                        Component.translatable("voicemessagestranscriber.button.show_text"), ACTION_SHOW_TEXT, token);
-            };
+        private FormattedCharSequence getShowVoiceButton() {
+            if (showVoiceButton == null) {
+                showVoiceButton = createButton(SPRITE_SHOW_VOICE, "[V]",
+                        Component.translatable("voicemessagestranscriber.button.show_voice"), ACTION_SHOW_VOICE, token).getVisualOrderText();
+            }
+            return showVoiceButton;
         }
 
         private Component createTextContent() {
@@ -295,9 +333,6 @@ public final class TranscriptionManager {
             if (!sender.getString().isEmpty()) {
                 result.append(" ");
             }
-            result.append(createButton(SPRITE_SHOW_VOICE, "[V]",
-                            Component.translatable("voicemessagestranscriber.button.show_voice"), ACTION_SHOW_VOICE, token))
-                    .append(" ");
             if (text.isEmpty()) {
                 result.append(Component.translatable("voicemessagestranscriber.no_speech").withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
             } else {

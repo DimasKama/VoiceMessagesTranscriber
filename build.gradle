@@ -24,7 +24,7 @@ dependencies {
 
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
-    include implementation("maven.modrinth:voicemessages:fabric-${project.voicemessages_version}")
+    implementation("maven.modrinth:voicemessages:fabric-${project.voicemessages_version}")
 
     include implementation("io.github.givimad:whisper-jni:${project.whisper_jni_version}")
 

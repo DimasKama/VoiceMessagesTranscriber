@@ -33,8 +33,8 @@ public class VoiceMessagesTranscriber implements ClientModInitializer {
         CONFIG.loadOrCreate();
         WhisperModels.init(FabricLoader.getInstance().getGameDir().resolve(MOD_ID).resolve("models"));
 
-        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) ->
-                dispatcher.register(ClientCommands.literal("vmtranscriber").executes(context -> {
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, _) ->
+                dispatcher.register(ClientCommands.literal("vmtranscriber").executes(_ -> {
                     openSettingsNextTick = true;
                     return 1;
                 }))
