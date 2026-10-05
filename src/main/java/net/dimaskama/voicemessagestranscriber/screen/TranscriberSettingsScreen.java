@@ -1,6 +1,5 @@
 package net.dimaskama.voicemessagestranscriber.screen;
 
-import com.mojang.blaze3d.Blaze3D;
 import net.dimaskama.voicemessagestranscriber.VoiceMessagesTranscriber;
 import net.dimaskama.voicemessagestranscriber.whisper.ModelDownload;
 import net.dimaskama.voicemessagestranscriber.whisper.WhisperLanguages;
@@ -19,6 +18,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.util.Util;
 import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ public class TranscriberSettingsScreen extends Screen {
                 Component.translatable("voicemessagestranscriber.settings.language", WhisperLanguages.getDisplayName(VoiceMessagesTranscriber.CONFIG.getData().language())),
                 b -> minecraft.gui.setScreen(new WhisperLanguageScreen(this))
         ).width(BUTTON_WIDTH).build());
-        bottomButtons.addChild(Button.builder(Component.translatable("voicemessagestranscriber.settings.open_folder"), b -> Blaze3D.openPath(WhisperModels.getModelsDir())).width(74).build());
+        bottomButtons.addChild(Button.builder(Component.translatable("voicemessagestranscriber.settings.open_folder"), b -> Util.getPlatform().openPath(WhisperModels.getModelsDir())).width(74).build());
         bottomButtons.addChild(Button.builder(CommonComponents.GUI_DONE, b -> onClose()).width(68).build());
 
         layout.visitWidgets(this::addRenderableWidget);
